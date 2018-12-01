@@ -1,7 +1,11 @@
+type Dog {
+  name: String
+}
+
 type Mutation {
-  temp: String
+  createDog(name: String!): Dog
 }
 
 type Query {
-  temp: String
+  dogs: [Dog]!
 }
