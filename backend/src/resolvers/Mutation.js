@@ -25,6 +25,16 @@ const mutations = {
       },
       info // contains query from client side which determines what to return
     );
+  },
+
+  async deleteItem(parent, args, ctx, info) {
+    const where = { id: args.id };
+    // Query the item exists
+    const item = await ctx.db.query.item({ where }, `{ id title }`);
+    // Check that user owns it
+    // TODO
+    // Delete it
+    return ctx.db.mutation.deleteItem({ where }, info);
   }
 };
 
