@@ -65,6 +65,27 @@ const mutations = {
     });
 
     return user;
+  },
+
+  async signin(parent, { email, password }, ctx, info) {
+    // Check if user with email
+    const user = await ctx.db.query.user({ where: { email } });
+    if (!user) {
+      throw new Error(`No such user found for email ${email}`);
+    }
+    // Check password
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      throw new Error("Invalid password");
+    }
+    // Generate JWT and set in cookie
+    const token = jwt.sign({ userId: user.id }, process.env.APP_SECRET);
+    ctx.response.cookie("token", token, {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 365
+    });
+    // Return user
+    return user;
   }
 };
 
