@@ -40,7 +40,7 @@ class Signin extends Component {
               }}
             >
               <fieldset disabled={loading} aria-busy={loading}>
-                <h2>Signup into your account</h2>
+                <h2>Sign into your account</h2>
                 <ErrorMessage error={error} />
                 <label>
                   Email
