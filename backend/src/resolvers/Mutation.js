@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { randomBytes } = require("crypto");
+const { promisify } = require("util");
 
 const mutations = {
   async createItem(parent, args, ctx, info) {
@@ -91,6 +93,62 @@ const mutations = {
   signout(parent, args, ctx, info) {
     ctx.response.clearCookie("token");
     return { message: "See ya!" };
+  },
+
+  async requestReset(parent, args, ctx, info) {
+    // 1. Validate user
+    const user = await ctx.db.query.user({ where: { email: args.email } });
+    if (!user) {
+      throw new Error(`No such user found for email ${args.email}`);
+    }
+    // 2. Set reset tokens
+    const randomBytesPr = promisify(randomBytes);
+    const resetToken = (await randomBytesPr(20)).toString("hex");
+    const resetTokenExpiry = Date.now() + 3600000; // 1 hour from now
+    const res = await ctx.db.mutation.updateUser({
+      where: { email: args.email },
+      data: { resetToken, resetTokenExpiry }
+    });
+    return { message: "Sent!" };
+    // 3. Email token
+  },
+
+  async resetPassword(parent, args, ctx, info) {
+    // 1. Check passwords match
+    if (args.password !== args.confirmPassword) {
+      throw new Error("Passwords do not match");
+    }
+    // 2. Validate token
+    const [user] = await ctx.db.query.users({
+      where: {
+        resetToken: args.resetToken,
+        resetTokenExpiry_gte: Date.now() - 3600000
+      }
+    });
+    if (!user) {
+      throw new Error("Token invalid or expired");
+    }
+    // 3. Hash new password
+    const password = await bcrypt.hash(args.password, 10);
+    // 4. Save password and cleanup
+    const updatedUser = await ctx.db.mutation.updateUser({
+      where: {
+        email: user.email
+      },
+      data: {
+        password,
+        resetToken: null,
+        resetTokenExpiry: null
+      }
+    });
+    // 5. JWT stuff
+    const token = jwt.sign({ userId: updatedUser.id }, process.env.APP_SECRET);
+    ctx.response.cookie("token", token, {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 365
+    });
+    // 6. Return user
+    return updatedUser;
   }
 };
 
