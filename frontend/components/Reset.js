@@ -61,7 +61,6 @@ class Reset extends Component {
                     onChange={this.saveToState}
                   />
                 </label>
-                {this.state.password}
                 <label>
                   Confirm Password
                   <input
