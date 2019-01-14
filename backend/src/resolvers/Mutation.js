@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const { randomBytes } = require("crypto");
 const { promisify } = require("util");
 const { transport, makeANiceEmail } = require("../mail");
+const { hasPermission } = require("../utils");
 
 const mutations = {
   async createItem(parent, args, ctx, info) {
@@ -44,9 +45,25 @@ const mutations = {
   async deleteItem(parent, args, ctx, info) {
     const where = { id: args.id };
     // Query the item exists
-    const item = await ctx.db.query.item({ where }, `{ id title }`);
+    const item = await ctx.db.query.item(
+      { where },
+      `{
+        id
+        title
+        user {
+          id
+        }
+      }`
+    );
     // Check that user owns it
-    // TODO
+    const ownsItem = item.user.id === ctx.request.userId;
+    const hasPermissions = ctx.request.user.permissions.some(permission => {
+      return Array("ADMIN", "ITEM_DELETE").includes(permission);
+    });
+
+    if (!ownsItem && !hasPermissions) {
+      throw new Error("You don't have permission to do that.");
+    }
     // Delete it
     return ctx.db.mutation.deleteItem({ where }, info);
   },
@@ -168,6 +185,37 @@ const mutations = {
     });
     // 6. Return user
     return updatedUser;
+  },
+
+  async updatePermissions(parent, args, ctx, info) {
+    // Confirm login
+    if (!ctx.request.userId) {
+      throw new Error("You must be signed in.");
+    }
+    // Query current user
+    const user = await ctx.db.query.user(
+      {
+        where: { id: ctx.request.userId }
+      },
+      info
+    );
+    // Validate they have permission to do this
+    hasPermission(user, ["ADMIN", "PERMISSIONUPDATE"]);
+    // Update permissions
+    return ctx.db.mutation.updateUser(
+      {
+        data: {
+          permissions: {
+            // Prisma requires us to use this 'set' thing
+            set: args.permissions
+          }
+        },
+        where: {
+          id: args.userId
+        }
+      },
+      info
+    );
   }
 };
 
