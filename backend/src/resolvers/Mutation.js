@@ -216,6 +216,45 @@ const mutations = {
       },
       info
     );
+  },
+
+  async addToCart(parent, args, ctx, info) {
+    // Check user signed in
+    const { userId } = ctx.request;
+    if (!userId) {
+      throw new Error("You must be singed in.");
+    }
+    // Query user's current cart
+    const [existingCartItem] = await ctx.db.query.cartItems({
+      where: {
+        user: { id: userId },
+        item: { id: args.id }
+      }
+    });
+    // Check if item is already in cart. Increment or add
+    if (existingCartItem) {
+      return ctx.db.mutation.updateCartItem(
+        {
+          where: { id: existingCartItem.id },
+          data: { quantity: existingCartItem.quantity + 1 }
+        },
+        info
+      );
+    }
+
+    return ctx.db.mutation.createCartItem(
+      {
+        data: {
+          user: {
+            connect: { id: userId }
+          },
+          item: {
+            connect: { id: args.id }
+          }
+        }
+      },
+      info
+    );
   }
 };
 
